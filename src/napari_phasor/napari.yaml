@@ -1,5 +1,5 @@
 name: napari-phasor
-display_name: phasor
+display_name: phasor analysis in napari
 contributions:
   commands:
     - id: napari-phasor.get_reader
