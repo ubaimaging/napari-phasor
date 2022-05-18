@@ -1,41 +1,41 @@
-"""
-This module is an example of a barebones QWidget plugin for napari
-
-It implements the Widget specification.
-see: https://napari.org/plugins/guides.html?#widgets
-
-Replace code below according to your needs.
-"""
-from magicgui import magic_factory
-from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
+import napari
+import PhasorPy as ph
+from napari.types import ImageData
+from magicgui import magicgui
+import tifffile
 
 
-class ExampleQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # in one of two ways:
-    # 1. use a parameter called `napari_viewer`, as done here
-    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
-    def __init__(self, napari_viewer):
-        super().__init__()
-        self.viewer = napari_viewer
-
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
-
-        self.setLayout(QHBoxLayout())
-        self.layout().addWidget(btn)
-
-    def _on_click(self):
-        print("napari has", len(self.viewer.layers), "layers")
+# turn the gaussian blur function into a magicgui
+# - `auto_call` tells magicgui to call the function when a parameter changes
+# - we use `widget_type` to override the default "float" widget on sigma,
+#   and provide a maximum valid value.
+# - we contstrain the possible choices for `mode`
 
 
-@magic_factory
-def example_magic_widget(img_layer: "napari.layers.Image"):
-    print(f"you have selected {img_layer}")
+def image_reader(path):
+    return tifffile.imread(path)
 
 
-# Uses the `autogenerate: true` flag in the plugin manifest
-# to indicate it should be wrapped as a magicgui to autogenerate
-# a widget.
-def example_function_widget(img_layer: "napari.layers.Image"):
-    print(f"you have selected {img_layer}")
+@magicgui(
+    auto_call=True,
+    harmonic={"widget_type": "IntSlider", "max": 100},
+    radius={"widget_type": "FloatSlider", "max": 1},
+    layout='horizontal'
+)
+def phasor_plot(image=None, harmonic: int = 1, radius: float = 0.1) -> ImageData:
+    if image is not None:
+        dc, g, s, _, _ = ph.phasor(image, harmonic)
+        return ph.interactive(dc, g, s, radius)
+
+
+# create a viewer and add some images
+im = image_reader('/home/bruno/Documentos/Proyectos/TESIS/TESIS/Experimentos/exp_bordes/img_1x1/lsm/exp_1x1_nevo_2.lsm')
+viewer = napari.Viewer()
+viewer.add_image(im, name="Raw image stack")
+
+# Add it to the napari viewer
+viewer.window.add_dock_widget(phasor_plot(im))
+# update the layer dropdown menu when the layer list changes
+viewer.layers.events.changed.connect(phasor_plot.reset_choices)
+
+napari.run()
